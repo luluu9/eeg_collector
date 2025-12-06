@@ -47,7 +47,7 @@ def main():
         
         raw.filter(l_freq=1.0, h_freq=40.0, fir_design='firwin')
         raw.notch_filter(freqs=[50.0])
-        
+
         # Extract events from annotations
         # MNE stores our string descriptions in annotations, we convert them back to events for plotting
         events, event_id = mne.events_from_annotations(raw)
@@ -56,7 +56,7 @@ def main():
         
         # Plot
         # scalings='auto' helps if signals are small/large
-        raw.plot(events=events, event_id=event_id, block=True, title=f"Inspection: {os.path.basename(latest_file)}", scalings='auto')
+        raw.plot(events=events, event_id=event_id, block=True, title=f"Inspection: {os.path.basename(latest_file)}")
         
     except Exception as e:
         print(f"Error loading/plotting file: {e}")

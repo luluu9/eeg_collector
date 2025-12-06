@@ -55,7 +55,7 @@ class DataLogger:
             return
             
         # Concatenate all data
-        full_data = np.concatenate(self.raw_data, axis=0).T # MNE expects (n_channels, n_times)
+        full_data = np.concatenate(self.raw_data, axis=0).T * 1e-6 # MNE expects (n_channels, n_times)
         full_times = np.concatenate(self.timestamps)
         
         # Create Raw object

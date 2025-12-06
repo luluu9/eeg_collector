@@ -12,14 +12,14 @@ class TaskType(Enum):
 @dataclass
 class ExperimentConfig:
     # Timing parameters (in seconds)
-    preparation_duration: float = 1.0
+    preparation_duration: float = 1.0 # event is emitted at start of preparation
     recording_duration: float = 5.0
     min_relax_duration: float = 2.0
     max_relax_duration: float = 3.0
     
     # Experiment structure
     n_runs: int = 1
-    repetitions_per_run: int = 15 # 5 classes * 15 reps = 75 trials
+    repetitions_per_run: int = 10 # 5 classes * 10 reps = 50 trials
     
     # Markers for LSL/Events
     markers: Dict[TaskType, int] = None
