@@ -4,18 +4,21 @@ from enum import Enum, auto
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 from pylsl import local_clock
 from ..config import ExperimentConfig, TaskType
+from ..core.classifier import MockClassifier
 
 class ExperimentState(Enum):
     IDLE = auto()
     RELAX = auto()
     CUE = auto()
     RECORDING = auto()
+    FEEDBACK = auto()
     FINISHED = auto()
 
 class ExperimentSession(QObject):
     # Signals to update GUI
     state_changed = pyqtSignal(ExperimentState)
     task_changed = pyqtSignal(str) # e.g. "Left Hand"
+    feedback_ready = pyqtSignal(str, bool) # prediction_name, is_correct
     progress_updated = pyqtSignal(int, int) # current_trial, total_trials
     finished = pyqtSignal()
     
@@ -24,6 +27,8 @@ class ExperimentSession(QObject):
         self.config = config
         self.lsl_client = lsl_client
         self.data_logger = data_logger
+        
+        self.classifier = MockClassifier(accuracy=config.mock_classifier_accuracy)
         
         self.state = ExperimentState.IDLE
         self.current_trial_idx = 0
@@ -70,9 +75,9 @@ class ExperimentSession(QObject):
         # User wants "reset only current task".
         # So we stop the timer, and when we resume, we restart the SAME trial index.
         
-        # If we pause during CUE or RECORDING, we should remove the event
+        # If we pause during CUE or RECORDING or FEEDBACK, we should remove the event
         # because the trial is being rejected/retried.
-        if self.state in [ExperimentState.CUE, ExperimentState.RECORDING]:
+        if self.state in [ExperimentState.CUE, ExperimentState.RECORDING, ExperimentState.FEEDBACK]:
             self.data_logger.remove_last_event()
             
         self.state_changed.emit(ExperimentState.IDLE) # Show Idle/Paused
@@ -100,11 +105,7 @@ class ExperimentSession(QObject):
         # Fetch data from LSL client and push to DataLogger
         data, timestamps = self.lsl_client.get_data()
         self.data_logger.add_data(data, timestamps)
-        if timestamps.size > 0:
-            print("timestamps[0]", timestamps[0]) # should be every 100ms
-            print("timestamps[-1]", timestamps[-1])
         
-
     def _next_trial(self):
         if not self.running or self.paused:
             return
@@ -152,12 +153,36 @@ class ExperimentSession(QObject):
         
         self.timer.start(int(self.config.recording_duration * 1000))
         
+    def _enter_feedback(self):
+        self.state = ExperimentState.FEEDBACK
+        self.state_changed.emit(self.state)
+        
+        # Get prediction
+        # For MockClassifier, we just pass dummy data and the true label.
+        prediction = self.classifier.predict(None, self.current_task)
+        is_correct = (prediction == self.current_task)
+        
+        # Emit signal to GUI
+        self.feedback_ready.emit(prediction.name, is_correct)
+        
+        # Log event (Feedback onset + Prediction marker)
+        event_timestamp = local_clock()-self.lsl_client.lsl_offset
+        self.data_logger.add_event(event_timestamp, self.config.get_feedback_marker(prediction))
+        
+        # Log Binary Correct/Wrong marker
+        quality_marker = self.config.marker_correct if is_correct else self.config.marker_wrong
+        self.data_logger.add_event(event_timestamp, quality_marker)
+        
+        self.timer.start(int(self.config.feedback_duration * 1000))
+        
     def _on_timeout(self):
         if self.state == ExperimentState.RELAX:
             self._enter_cue()
         elif self.state == ExperimentState.CUE:
             self._enter_recording()
         elif self.state == ExperimentState.RECORDING:
+            self._enter_feedback()
+        elif self.state == ExperimentState.FEEDBACK:
             # Trial done, move to next
             self.current_trial_idx += 1
             self._next_trial()

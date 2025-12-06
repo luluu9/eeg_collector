@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self.experiment = ExperimentSession(self.config, self.lsl_client, self.data_logger)
         self.experiment.state_changed.connect(self.on_state_changed)
         self.experiment.task_changed.connect(self.on_task_changed)
+        self.experiment.feedback_ready.connect(self.on_feedback_ready)
         self.experiment.progress_updated.connect(self.on_progress_updated)
         self.experiment.finished.connect(self.on_finished)
         
@@ -171,6 +172,12 @@ class MainWindow(QMainWindow):
     @pyqtSlot(int, int)
     def on_progress_updated(self, current, total):
         self.progress_label.setText(f"Trial: {current} / {total}")
+        
+    @pyqtSlot(str, bool)
+    def on_feedback_ready(self, prediction, is_correct):
+        if self.stimulus_window:
+            self.stimulus_window.show_feedback(prediction, is_correct)
+            self.status_label.setText(f"Feedback: {prediction} ({'Correct' if is_correct else 'Wrong'})")
         
     def on_finished(self):
         # Save data

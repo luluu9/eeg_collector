@@ -20,19 +20,27 @@ class StimulusWindow(QWidget):
         self.current_task = None
         self.is_relax = False
         
+        self.feedback_mode = False
+        self.feedback_correct = False
+        self.feedback_prediction = None
+        
     def set_task(self, task_name):
-        # Parse task name back to type or just string match
-        # task_name comes from ExperimentSession.task_changed
+        self.feedback_mode = False # Reset feedback
         
         if task_name == "Relax":
             self.is_relax = True
             self.current_task = None
         else:
             self.is_relax = False
-            # Map string to TaskType if needed, or just store string
             self.current_task = task_name
             
-        self.update()
+        self.repaint()
+        
+    def show_feedback(self, prediction, is_correct):
+        self.feedback_mode = True
+        self.feedback_correct = is_correct
+        self.feedback_prediction = prediction
+        self.repaint()
 
     def keyPressEvent(self, event):
         self.keyPressed.emit(event.key())
@@ -51,34 +59,48 @@ class StimulusWindow(QWidget):
         pen.setWidth(5)
         painter.setPen(pen)
         
-        if self.is_relax:
+        # Draw background explicitely
+        bg_rect = self.rect()
+        if self.feedback_mode:
+            bg_color = Qt.GlobalColor.green if self.feedback_correct else Qt.GlobalColor.red
+            painter.fillRect(bg_rect, bg_color)
+            task_to_draw = None 
+        else:
+            painter.fillRect(bg_rect, Qt.GlobalColor.white)
+            task_to_draw = self.current_task
+
+        # Draw content
+        if self.feedback_mode and task_to_draw:
+             self._draw_task_symbol(painter, center_x, center_y, task_to_draw)
+             
+        elif self.is_relax:
             # Draw Fixation Cross
             size = 50
             painter.drawLine(center_x - size, center_y, center_x + size, center_y)
             painter.drawLine(center_x, center_y - size, center_x, center_y + size)
             
-        elif self.current_task:
-            # Draw Arrows based on task
-            # Task names from Enum: LEFT_HAND, RIGHT_HAND, BOTH_HANDS, FEET, RELAX(handled above)
+        elif task_to_draw:
+            self._draw_task_symbol(painter, center_x, center_y, task_to_draw)
             
-            size = 100
-            
-            if "LEFT" in self.current_task:
-                self._draw_arrow(painter, center_x, center_y, size, "left")
-            elif "RIGHT" in self.current_task:
-                self._draw_arrow(painter, center_x, center_y, size, "right")
-            elif "BOTH" in self.current_task:
-                # Double Up Arrow side by side
-                offset = int(size / 1.5)
-                self._draw_arrow(painter, center_x - offset, center_y, size, "up")
-                self._draw_arrow(painter, center_x + offset, center_y, size, "up")
-            elif "FEET" in self.current_task:
-                # Double Down Arrow side by side
-                offset = int(size / 1.5)
-                self._draw_arrow(painter, center_x - offset, center_y, size, "down")
-                self._draw_arrow(painter, center_x + offset, center_y, size, "down")
-            elif "RELAX" in self.current_task:
-                 painter.drawEllipse(QPoint(center_x, center_y), size, size)
+    def _draw_task_symbol(self, painter, center_x, center_y, task_name):
+        size = 100
+        
+        if "LEFT" in task_name:
+            self._draw_arrow(painter, center_x, center_y, size, "left")
+        elif "RIGHT" in task_name:
+            self._draw_arrow(painter, center_x, center_y, size, "right")
+        elif "BOTH" in task_name:
+            # Double Up Arrow side by side
+            offset = int(size / 1.5)
+            self._draw_arrow(painter, center_x - offset, center_y, size, "up")
+            self._draw_arrow(painter, center_x + offset, center_y, size, "up")
+        elif "FEET" in task_name:
+            # Double Down Arrow side by side
+            offset = int(size / 1.5)
+            self._draw_arrow(painter, center_x - offset, center_y, size, "down")
+            self._draw_arrow(painter, center_x + offset, center_y, size, "down")
+        elif "RELAX" in task_name:
+             painter.drawEllipse(QPoint(center_x, center_y), size, size)
 
     def _draw_arrow(self, painter: QPainter, x: int, y: int, size: int, direction: str):
         # Simple arrow drawing
