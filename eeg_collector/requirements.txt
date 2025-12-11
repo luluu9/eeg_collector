@@ -3,3 +3,6 @@ pylsl
 mne
 numpy
 pandas
+scikit-learn
+mne-lsl
+joblib

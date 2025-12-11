@@ -4,7 +4,7 @@ from enum import Enum, auto
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 from pylsl import local_clock
 from ..config import ExperimentConfig, TaskType
-from ..core.classifier import MockClassifier
+from ..core.classifier import MockClassifier, CSPSVMClassifier
 
 class ExperimentState(Enum):
     IDLE = auto()
@@ -28,7 +28,10 @@ class ExperimentSession(QObject):
         self.lsl_client = lsl_client
         self.data_logger = data_logger
         
-        self.classifier = MockClassifier(accuracy=config.mock_classifier_accuracy)
+        if not config.use_mock_classifier:
+            self.classifier = CSPSVMClassifier()
+        else:
+            self.classifier = MockClassifier(accuracy=config.mock_classifier_accuracy)
         
         self.state = ExperimentState.IDLE
         self.current_trial_idx = 0
@@ -104,7 +107,7 @@ class ExperimentSession(QObject):
     def _poll_data(self):
         # Fetch data from LSL client and push to DataLogger
         data, timestamps = self.lsl_client.get_data()
-        self.data_logger.add_data(data, timestamps)
+        self.data_logger.add_data(data*1e-6, timestamps)
         
     def _next_trial(self):
         if not self.running or self.paused:
@@ -157,9 +160,10 @@ class ExperimentSession(QObject):
         self.state = ExperimentState.FEEDBACK
         self.state_changed.emit(self.state)
         
-        # Get prediction
-        # For MockClassifier, we just pass dummy data and the true label.
-        prediction = self.classifier.predict(None, self.current_task)
+        samples = getattr(self.classifier, 'filter_samples', 0)
+        recent_data = self.data_logger.get_recent_data(samples)
+        
+        prediction = self.classifier.predict(recent_data, self.current_task)
         is_correct = (prediction == self.current_task)
         
         # Emit signal to GUI

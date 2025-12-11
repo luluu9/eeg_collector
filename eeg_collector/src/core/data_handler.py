@@ -55,7 +55,7 @@ class DataLogger:
             return
             
         # Concatenate all data
-        full_data = np.concatenate(self.raw_data, axis=0).T * 1e-6 # MNE expects (n_channels, n_times)
+        full_data = np.concatenate(self.raw_data, axis=0).T # MNE expects (n_channels, n_times)
         full_times = np.concatenate(self.timestamps)
         
         # Create Raw object
@@ -108,4 +108,49 @@ class DataLogger:
         filename = os.path.join(self.save_dir, f"{subject_id}_run{run_id}_{timestamp_str}_raw.fif")
         
         raw.save(filename, overwrite=True)
-        print(f"Saved data to {filename}")
+        print(f"Saved data to {filename}") 
+
+    def get_recent_data(self, duration: float) -> np.ndarray:
+        """
+        Get the most recent data of specified duration.
+        Returns numpy array (n_channels, n_samples).
+        If not enough data, returns what is available.
+        """
+        if not self.raw_data or self.info is None:
+            return np.array([])
+            
+        required_samples = int(duration * self.info['sfreq'])
+        
+        # Collect data backwards
+        collected_samples = 0
+        chunks = []
+        
+        for chunk in reversed(self.raw_data):
+            # chunk is (n_samples, n_channels) (from LSL code analysis)
+            # Wait, LSL pull_chunk returns (n_samples, n_channels)?
+            # Code says: self.data_buffer.extend(chunk)
+            # LSL pull_chunk returns list of samples. Each sample is a list of channels.
+            # So data_buffer is list of [ch1, ch2, ...]
+            # np.array(d) makes it (n_samples, n_channels).
+            # So chunk in raw_data is (n_samples, n_channels).
+            
+            # We want (n_channels, n_samples) for processing usually, or keep (samples, channels) 
+            # and transpose at the end.
+            # MNE expects (n_channels, n_samples).
+            
+            chunks.insert(0, chunk)
+            collected_samples += len(chunk)
+            if collected_samples >= required_samples:
+                break
+                
+        if not chunks:
+            return np.array([])
+            
+        full_data = np.concatenate(chunks, axis=0) # (total_samples, n_channels)
+        
+        # Take last required_samples
+        if len(full_data) > required_samples:
+            full_data = full_data[-required_samples:]
+            
+        # Transpose to (n_channels, n_samples)
+        return full_data.T

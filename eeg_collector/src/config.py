@@ -8,6 +8,7 @@ class TaskType(Enum):
     RIGHT_HAND = auto()
     BOTH_HANDS = auto()
     FEET = auto()
+    ERROR = auto()
 
 @dataclass
 class ExperimentConfig:
@@ -24,6 +25,8 @@ class ExperimentConfig:
     
     # Classifier
     mock_classifier_accuracy: float = 0.5
+    use_mock_classifier: bool = False
+    sampling_rate: int = 2048
     
     # Markers for LSL/Events
     markers: Dict[TaskType, int] = None
