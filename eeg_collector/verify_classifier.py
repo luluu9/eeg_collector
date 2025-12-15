@@ -13,11 +13,14 @@ from src.config import TaskType, ExperimentConfig
 
 # File to load
 FILE_PATHS = [
-    r'../data/mati_imagery_1_run1_20251207_183304_raw.fif',
+    #r'../data/mati_imagery_1_run1_20251207_183304_raw.fif',
     r'../data/mati_imagery_2_run1_20251207_190808_raw.fif',
-    r'../data/mati_imagery_3_real_classifier_run1_20251207_204045_raw.fif',
-    r'../data/mati_imagery_4_real_classifier_run1_20251207_210156_raw.fif']
+    #r'../data/mati_imagery_3_real_classifier_run1_20251207_204045_raw.fif',
+    #r'../data/mati_imagery_4_real_classifier_run1_20251207_210156_raw.fif'
+    ]
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'csp_svm_model.pkl')
+
+DEBUG_RUN = False
 
 events_real = {"relax": 1, "left_hand": 2, "right_hand": 3, "both_hands": 4, "both_feets": 5}
 events_predicted = {"relax_predicted": 11, "left_hand_predicted": 12, "right_hand_predicted": 13, "both_hands_predicted": 14, "both_feets_predicted": 15}
@@ -73,10 +76,11 @@ def verify_classifier():
         correct_counts = defaultdict(int)
         total_counts = defaultdict(int)
         
-        print(f"\nStarting verification for {os.path.basename(file_path)}...")
-        print("-" * 50)
-        print(f"{'Time':<10} | {'True Label':<10} | {'Predicted':<10} | {'Result':<10}")
-        print("-" * 50)
+        if DEBUG_RUN:
+            print(f"\nStarting verification for {os.path.basename(file_path)}...")
+            print("-" * 50)
+            print(f"{'Time':<10} | {'True Label':<10} | {'Predicted':<10} | {'Result':<10}")
+            print("-" * 50)
 
         fs_raw = raw.info['sfreq']
         
@@ -90,11 +94,13 @@ def verify_classifier():
             
             # Check if this marker is a known task
             if marker_id not in marker_map:
-                #print("Warning: Unknown marker id: ", marker_id)
+                if DEBUG_RUN:
+                    print("Warning: Unknown marker id: ", marker_id)
                 continue
             
             if marker_id not in model_classes:
-                #print("Info: Model does not know task ", marker_map[marker_id])
+                if DEBUG_RUN:
+                    print("Info: Model does not know task ", marker_map[marker_id])
                 continue
                 
             task_type = marker_map[marker_id]
@@ -125,13 +131,13 @@ def verify_classifier():
             is_correct = (prediction == task_type)
             result_str = "CORRECT" if is_correct else "WRONG"
             
-            print(f"{start_sample/fs_raw:<10.1f} | {task_type.name:<10} | {prediction.name:<10} | {result_str:<10}")
+            if DEBUG_RUN:
+                print(f"{start_sample/fs_raw:<10.1f} | {task_type.name:<10} | {prediction.name:<10} | {result_str:<10}")
+                print("-" * 50)
             
             total_counts[task_type] += 1
             if is_correct:
                 correct_counts[task_type] += 1
-        
-            print("-" * 50)
         
         y_true_names = [t.name for t in file_true_labels]
         y_pred_names = [t.name for t in file_predicted_labels]
