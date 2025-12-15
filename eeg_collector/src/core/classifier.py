@@ -47,8 +47,11 @@ class MockClassifier(BaseClassifier):
 
 
 class CSPSVMClassifier(BaseClassifier):
-    def __init__(self):
-        self.model_path = os.path.join(os.path.dirname(__file__), '..', '..', 'models', 'csp_svm_mati_model.pkl')
+    def __init__(self, model_path: str = None):
+        if model_path is None:
+            self.model_path = os.path.join(os.path.dirname(__file__), '..', '..', 'models', 'csp_svm_mati_model.pkl')
+        else:
+            self.model_path = model_path
         
         self.config = ExperimentConfig()
         self.classifier_sampling_rate: int = 256
