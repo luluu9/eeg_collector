@@ -3,8 +3,11 @@ from mne_lsl.player import PlayerLSL
 from mne_lsl.datasets import sample
 from mne_lsl.stream_viewer import StreamViewer
 from pylsl import resolve_streams
-import time
-
+from mne.io import read_raw_fif
+from mne import Annotations
+import numpy as np
+from threading import Event
+    
 export_name = r"data/mati_imagery_2_run1_20251207_190808_raw.fif"
 debug_file = False
 stream_name = "test-player"
@@ -13,31 +16,56 @@ def player_process(raw_path, start_event):
     if debug_file:
         raw_path = sample.data_path() / "sample-ant-raw.fif"
 
-    chunk_size = 20  # number of samples to send in one push
-    player = PlayerLSL(raw_path, chunk_size=chunk_size, name=stream_name)
+    # Load raw first to manipulate annotations
+    raw = read_raw_fif(raw_path, preload=True)
+    
+    # 1. Filter Annotations (Keep only 1-5)
+    keep_desc = ['1', '2', '3', '4', '5']
+    # Filter logic: list comprehension on raw.annotations
+    # Note: Annotations object is mutable
+    
+    # Extract existing
+    onsets = []
+    durations = []
+    descriptions = []
+    
+    for o, d, desc in zip(raw.annotations.onset, raw.annotations.duration, raw.annotations.description):
+        if desc in keep_desc:
+            onsets.append(o)
+            durations.append(d)
+            descriptions.append(desc)
+            
+    # 2. Ensure ALL classes are present (Pad with dummy at t=0 if missing)
+    # This forces PlayerLSL to create channels for 1, 2, 3, 4, 5 in that sorted order.
+    # PlayerLSL sorts unique(descriptions).
+    # If we have ['1', '1', '2', ...], sorted=['1', '2'] -> Ch0='1', Ch1='2'.
+    # If we add '3' at t=0 (duration 0), sorted=['1', '2', '3'] -> Ch0='1', Ch1='2', Ch2='3'.
+    
+    for val in keep_desc:
+        if val not in descriptions:
+            print(f"Adding dummy annotation for '{val}' to force channel creation.")
+            onsets.append(0.0)
+            durations.append(0.0)
+            descriptions.append(val)
+            
+    # Re-apply
+    new_annots = Annotations(onset=onsets, duration=durations, description=descriptions, orig_time=raw.annotations.orig_time)
+    raw.set_annotations(new_annots)
+    
+    chunk_size = 128  # number of samples to send in one push
+    # PlayerLSL accepts raw object
+    player = PlayerLSL(raw, chunk_size=chunk_size, name=stream_name)
     
     # Explore annotations
-    print("Annotations:")
-    print(player.annotations)
-    print(player.annotations.description)
-    print(player.annotations.to_data_frame())
+    print("Filtered Annotations (Descriptions):")
+    print(np.unique(player.annotations.description))
 
     # most likely 500 Hz for the sample data
     signal_freq = player.info["sfreq"]
     print("Signal frequency:", signal_freq)
     player.start()
     start_event.set()  # Signal that the player has started
-    while player.running:
-        pass
-    print("Player finished. Repeating")
-
-    # Restart the player (this part of the original code seems to imply
-    # a continuous loop, but for a simple replay, it might be better
-    # to let the process exit or handle the loop externally if needed.)
-    # For now, we'll just let it exit after one replay.
-    # If continuous replay is desired, the player object should be re-initialized
-    # or the loop logic adjusted.
-    # player_process(raw_path, start_event) # This would create infinite recursion
+    Event().wait()
 
 if __name__ == "__main__":
     player_started_event = mp.Event()
