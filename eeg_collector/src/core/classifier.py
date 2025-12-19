@@ -56,7 +56,7 @@ class CSPSVMClassifier(BaseClassifier):
         self.config = ExperimentConfig()
         self.classifier_sampling_rate: int = 256
         self.device_sampling_rate: int = self.config.sampling_rate
-        self.target_time: int = 2
+        self.target_time: int = 5
         self.target_samples: int = self.classifier_sampling_rate * self.target_time
         self.filter_samples: int = self.device_sampling_rate * self.target_time * 10
         self.lowcut: int = 8
@@ -91,7 +91,7 @@ class CSPSVMClassifier(BaseClassifier):
         # 0: trigger, 1: A1, 2: A2, ... 16: A16 
         data = data[1:17, -self.filter_samples:]
 
-        # Resample to 250Hz
+        # Resample to target samples
         data_seconds = data.shape[1] / self.device_sampling_rate
         target_samples = int(data_seconds * self.classifier_sampling_rate)
         data = signal.resample(data, target_samples, axis=1)
