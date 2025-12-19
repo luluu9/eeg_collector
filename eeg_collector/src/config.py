@@ -25,7 +25,7 @@ class ExperimentConfig:
     
     # Classifier
     mock_classifier_accuracy: float = 0.5
-    use_mock_classifier: bool = False
+    use_mock_classifier: bool = True
     sampling_rate: int = 2048
     
     # Markers for LSL/Events
